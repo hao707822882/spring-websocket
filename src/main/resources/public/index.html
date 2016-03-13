@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html ng-app="teach">
+<head>
+    <title>Hello WebSocket</title>
+    <script src="socket.js"></script>
+    <script src="stomp.js"></script>
+    <script src="jquery.js"></script>
+    <script src="angular.js"></script>
+    <script type="text/jsx">
+
+        var stompClient = null;
+
+        function setConnected(connected) {
+            document.getElementById('connect').disabled = connected;
+            document.getElementById('disconnect').disabled = !connected;
+            document.getElementById('conversationDiv').style.visibility = connected ? 'visible' : 'hidden';
+            document.getElementById('response').innerHTML = '';
+        }
+
+        function connect(data) {
+            var socket = new SockJS('/hello');
+            stompClient = Stomp.over(socket);
+            stompClient.connect({}, function (frame) {
+                setConnected(true);
+                console.log('Connected: ' + frame);
+                stompClient.subscribe('/topic/greetings', function (greeting) {
+                    showGreeting(JSON.parse(greeting.body).content);
+                });
+                stompClient.subscribe('/user/' + data.id + '/message', function (message) {
+                    showGreeting(JSON.parse(message.body).content + "这是点对点消息");
+                });
+            });
+        }
+
+        $.getJSON("/login", null, function (data) {
+            console.log(data)
+            connect(data)
+        })
+
+        function disconnect() {
+            stompClient.disconnect();
+            setConnected(false);
+            console.log("Disconnected");
+        }
+
+        function sendName() {
+            var name = document.getElementById('name').value;
+            stompClient.send("/app/hello", {}, JSON.stringify({'name': name}));
+        }
+
+        function showGreeting(message) {
+            var response = document.getElementById('response');
+            var p = document.createElement('p');
+            p.style.wordWrap = 'break-word';
+            p.appendChild(document.createTextNode(message));
+            response.appendChild(p);
+        }
+    </script>
+</head>
+<body>
+<noscript><h2 style="color: #ff0000">Seems your browser doesn't support Javascript! Websocket relies on Javascript being
+    enabled. Please enable
+    Javascript and reload this page!</h2></noscript>
+<div>
+    <div>
+        <button id="connect" onclick="connect();">Connect</button>
+        <button id="disconnect" disabled="disabled" onclick="disconnect();">Disconnect</button>
+    </div>
+    <div id="conversationDiv">
+        <label>What is your name?</label><input type="text" id="name"/>
+        <button id="sendName" onclick="sendName();">Send</button>
+        <p id="response"></p>
+    </div>
+</div>
+<div ng-controller="show">
+    {{data}}
+</div>
+</body>
+<script>
+    var myAppModule = angular.module('teach', [])
+    myAppModule.provider("webSocketService", function () {
+        this.stompClient = null;
+
+        this.setStompClient = function (endPoint) {
+            var socket = new SockJS("/" + endPoint);
+            this.stompClient = Stomp.over(socket);
+        }
+
+
+        this.$get = function () {
+            var self = this;
+            var service = {
+                createWebSocket: function (url, handler, scope) {
+                    self.stompClient.connect({}, function (frame) {
+                        console.log(frame)
+                        self.stompClient.subscribe(url, function (greeting) {
+                            scope.$apply(function () {
+                                handler(JSON.parse(greeting.body), scope)
+                            });
+                        });
+                    });
+                }
+            };
+            return service;
+        }
+    })
+
+    myAppModule.config(function (webSocketServiceProvider) {
+        webSocketServiceProvider.setStompClient("hello")
+    })
+
+    myAppModule.controller("show", ["webSocketService", "$scope", function (webSocketService, $scope) {
+        $scope.data = "sssss"
+        webSocketService.createWebSocket("/topic/greetings", function (data, $scope) {
+            console.log(data)
+
+            $scope.data = data.content
+
+        }, $scope)
+    }])
+
+</script>
+</html>
