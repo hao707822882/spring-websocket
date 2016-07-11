@@ -6,117 +6,87 @@
     <script src="stomp.js"></script>
     <script src="jquery.js"></script>
     <script src="angular.js"></script>
-    <script type="text/jsx">
-
-        var stompClient = null;
-
-        function setConnected(connected) {
-            document.getElementById('connect').disabled = connected;
-            document.getElementById('disconnect').disabled = !connected;
-            document.getElementById('conversationDiv').style.visibility = connected ? 'visible' : 'hidden';
-            document.getElementById('response').innerHTML = '';
-        }
-
-        function connect(data) {
-            var socket = new SockJS('/hello');
-            stompClient = Stomp.over(socket);
-            stompClient.connect({}, function (frame) {
-                setConnected(true);
-                console.log('Connected: ' + frame);
-                stompClient.subscribe('/topic/greetings', function (greeting) {
-                    showGreeting(JSON.parse(greeting.body).content);
-                });
-                stompClient.subscribe('/user/' + data.id + '/message', function (message) {
-                    showGreeting(JSON.parse(message.body).content + "这是点对点消息");
-                });
-            });
-        }
-
-        $.getJSON("/login", null, function (data) {
-            console.log(data)
-            connect(data)
-        })
-
-        function disconnect() {
-            stompClient.disconnect();
-            setConnected(false);
-            console.log("Disconnected");
-        }
-
-        function sendName() {
-            var name = document.getElementById('name').value;
-            stompClient.send("/app/hello", {}, JSON.stringify({'name': name}));
-        }
-
-        function showGreeting(message) {
-            var response = document.getElementById('response');
-            var p = document.createElement('p');
-            p.style.wordWrap = 'break-word';
-            p.appendChild(document.createTextNode(message));
-            response.appendChild(p);
-        }
-    </script>
 </head>
 <body>
-<noscript><h2 style="color: #ff0000">Seems your browser doesn't support Javascript! Websocket relies on Javascript being
-    enabled. Please enable
-    Javascript and reload this page!</h2></noscript>
-<div>
-    <div>
-        <button id="connect" onclick="connect();">Connect</button>
-        <button id="disconnect" disabled="disabled" onclick="disconnect();">Disconnect</button>
-    </div>
-    <div id="conversationDiv">
-        <label>What is your name?</label><input type="text" id="name"/>
-        <button id="sendName" onclick="sendName();">Send</button>
-        <p id="response"></p>
-    </div>
-</div>
 <div ng-controller="show">
-    {{data}}
+    <select ng-model="area">
+        <option value="1">艾欧尼亚</option>
+        <option value="2">组安</option>
+        <option value="3">德玛西亚</option>
+    </select>
+    <input type="text" ng-model="data"/>
+    <button id="connect" ng-click="connect()">connect</button>
+    <button id="sendName" ng-click="say()">Send</button>
+    {{data1}}
 </div>
 </body>
 <script>
     var myAppModule = angular.module('teach', [])
     myAppModule.provider("webSocketService", function () {
         this.stompClient = null;
-
-        this.setStompClient = function (endPoint) {
-            var socket = new SockJS("/" + endPoint);
-            this.stompClient = Stomp.over(socket);
+        //连接webSocket服务
+        this.setStompEndPoint = function (endPoint) {
+            this.endPoint = endPoint;
         }
 
 
         this.$get = function () {
             var self = this;
             var service = {
-                createWebSocket: function (url, handler, scope) {
+                listen: function (url, handler, scope) {
+
+                    if (!self.stompClient) {
+                        var socket = new SockJS("/" + self.endPoint);
+                        self.stompClient = Stomp.over(socket);
+                    }
+
                     self.stompClient.connect({}, function (frame) {
                         console.log(frame)
                         self.stompClient.subscribe(url, function (greeting) {
-                            scope.$apply(function () {
-                                handler(JSON.parse(greeting.body), scope)
-                            });
+                            console.log(greeting)
+                            if (scope.$root.$$phase != '$apply' && scope.$root.$$phase != '$digest') {
+                                scope.$apply(function () {
+                                    handler ? handler(JSON.parse(greeting.body), scope) : null;
+                                });
+                            }
                         });
                     });
+                    return this;
+                },
+                say: function (url, data, handler, scope) {
+                    self.stompClient.send(url, {}, JSON.stringify(data));
+                    if (scope.$root.$$phase != '$apply' && scope.$root.$$phase != '$digest') {
+                        scope.$apply(function () {
+                            handler ? handler(data, scope) : null;
+                        });
+                    }
                 }
+
             };
             return service;
         }
     })
 
     myAppModule.config(function (webSocketServiceProvider) {
-        webSocketServiceProvider.setStompClient("hello")
+        webSocketServiceProvider.setStompEndPoint("hello")
     })
 
     myAppModule.controller("show", ["webSocketService", "$scope", function (webSocketService, $scope) {
-        $scope.data = "sssss"
-        webSocketService.createWebSocket("/topic/greetings", function (data, $scope) {
-            console.log(data)
 
-            $scope.data = data.content
-
+        $scope.connect = function () {
+            if (!$scope.area) {
+                alert("未选择大区，无法连接！")
+                return
+            }
+            webSocketService.listen("/topic/greetings/" + $scope.area, function (data, $scope) {
+                $scope.data1 = $scope.data1 + "<-->" + data.content
         }, $scope)
+        }
+
+        $scope.say = function () {
+            var data = {"content": $scope.data, "area": $scope.area};
+            webSocketService.say("/app/hello", data, null, $scope);
+        }
     }])
 
 </script>

@@ -4,13 +4,22 @@ package com.other;
  * Created by Administrator on 2016/3/13.
  */
 public class HelloMessage {
-    private String name;
+    private String content;
+    private Integer area;
 
-    public String getName() {
-        return name;
+    public Integer getArea() {
+        return area;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setArea(Integer area) {
+        this.area = area;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
     }
 }

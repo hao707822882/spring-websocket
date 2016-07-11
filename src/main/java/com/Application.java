@@ -4,8 +4,8 @@ package com;
  * Created by Administrator on 2016/3/13.
  */
 
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.ComponentScan;
 
 @ComponentScan
